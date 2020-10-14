@@ -25,10 +25,6 @@ class Agent(JaxObject):
         if cls.__name__ not in AgentRegistry and not inspect.isabstract(cls):
             AgentRegistry[cls.__name__] = cls
 
-    @property
-    def name(self):
-        return self.__class__.__name__
-
     def __call__(self, observation):
         raise NotImplementedError()
 

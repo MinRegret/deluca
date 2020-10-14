@@ -78,3 +78,6 @@ class JaxObject:
     @classmethod
     def load(cls, path):
         return pickle.load(open(path, "rb"))
+
+    def throw(self, err, msg):
+        raise err(f"Class {self.name}: {msg}")

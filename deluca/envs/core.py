@@ -53,10 +53,6 @@ class Env(JaxObject, gym.Env):
             EnvRegistry[cls.__name__] = cls
 
     @property
-    def name(self):
-        return self.__class__.__name__
-
-    @property
     def observation(self):
         """
         NOTE: assume observations are fully observable
