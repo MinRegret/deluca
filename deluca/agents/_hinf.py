@@ -1,3 +1,6 @@
+from numbers import Real
+from typing import Tuple
+
 import jax.numpy as jnp
 from jax.numpy.linalg import inv
 
@@ -5,29 +8,74 @@ from deluca.agents.core import Agent
 
 
 class Hinf(Agent):
-    def __init__(self, A, B, T, Q=None, R=None):
+    """
+    Hinf: H-infinity controller (approximately).  Solves a lagrangian min-max
+    dynamic program similiar to H-infinity control rescales disturbance to have
+    norm 1.
+    """
+
+    def __init__(
+        self,
+        A: jnp.ndarray,
+        B: jnp.ndarray,
+        T: jnp.ndarray,
+        Q: jnp.ndarray = None,
+        R: jnp.ndarray = None,
+    ) -> None:
         """
-        H-infinity controller (approximately).  Solves a lagrangian min-max
-        dynamic program similiar to H-infinity control rescales disturbance to
-        have norm 1.
+        Description: initializes the Hinf agent
+
+        Args:
+            A (jnp.ndarray):
+            B (jnp.ndarray):
+            T (jnp.ndarray):
+            Q (jnp.ndarray):
+            R (jnp.ndarray):
         """
-        self.t = 0
         d_x, d_u = B.shape
-        Q = jnp.identity(d_x, dtype=jnp.float32) if Q is None else Q
-        R = jnp.identity(d_u, dtype=jnp.float32) if R is None else R
+
+        if Q is None:
+            Q = jnp.identity(d_x, dtype=jnp.float32)
+
+        if R is None:
+            R = jnp.identity(d_u, dtype=jnp.float32)
 
         self.K, self.W = solve_hinf(A, B, Q, R, T)
+        self.t = 0
 
-    def act(self, state):
+    def __call__(self, state):
+        """
+        Description: provide an action given a state
+
+        Args:
+            state (jnp.ndarray): the error PID must compensate for
+
+        Returns:
+            action (jnp.ndarray): action to take
+        """
         action = -self.K[self.t] @ state
         self.t += 1
         return action
 
-    def __str__(self):
-        return "Hinf"
 
+def solve_hinf(
+    A: jnp.ndarray,
+    B: jnp.ndarray,
+    Q: jnp.ndarray,
+    R: jnp.ndarray,
+    T: jnp.ndarray,
+    gamma_range: Tuple[Real, Real] = (0.1, 10.8),
+) -> Tuple[jnp.ndarray, jnp.ndarray]:
+    """
+    Description: solves H-infinity control problem
 
-def solve_hinf(A, B, Q, R, T, gamma_range=(0.1, 10.8)):
+    Args:
+        A (jnp.ndarray):
+        B (jnp.ndarray):
+        T (jnp.ndarray):
+        Q (jnp.ndarray):
+        R (jnp.ndarray):
+    """
     gamma_low, gamma_high = gamma_range
     n, m = B.shape
     M = [jnp.zeros(shape=(n, n))] * (T + 1)
@@ -46,7 +94,7 @@ def solve_hinf(A, B, Q, R, T, gamma_range=(0.1, 10.8)):
 
             K[t] = -inv(R) @ B.T @ M[t + 1] @ inv(Lambda) @ A
             W[t] = (gamma ** (-2)) * M[t + 1] @ inv(Lambda) @ A
-            if not psd_test(M[t], gamma):
+            if not is_psd(M[t], gamma):
                 gamma_low = gamma
                 break
         if gamma_low != gamma:
@@ -54,5 +102,8 @@ def solve_hinf(A, B, Q, R, T, gamma_range=(0.1, 10.8)):
     return K, W
 
 
-def psd_test(P, gamma):
+def is_psd(P, gamma):
+    """
+    Description: check if a matrix is positive semi-definite
+    """
     return jnp.all(jnp.linalg.eigvals(P) < gamma ** 2 + 1e-5)
