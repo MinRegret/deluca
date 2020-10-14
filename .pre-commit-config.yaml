@@ -17,7 +17,7 @@ repos:
     rev: 3.7.9
     hooks:
       - id: flake8
-        args: ['--show-source', '--ignore=E203', "--max-complexity=15"]
+        args: ['--show-source', '--ignore=E203,E741', "--max-complexity=15"]
         additional_dependencies: ['flake8-bugbear']
   - repo: https://github.com/humitos/mirrors-autoflake
     rev: v1.1
