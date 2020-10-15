@@ -1,8 +1,9 @@
 from os import path
 
 import jax
-import jax.numpy as np
-import numpy as onp
+import jax.numpy as jnp
+import numpy as ojnp
+from jym.envs.core import Env
 from scipy.optimize._numdiff import approx_derivative as scipy_approx_derivative
 
 
@@ -13,7 +14,7 @@ def approx_derivative(f, x, method):
                 rel_step = method["rel_step"]
             else:
                 rel_step = None
-            # print(np.linalg.norm(x))
+            # print(jnp.linalg.norm(x))
             return scipy_approx_derivative(f, x, method["alg"], rel_step=rel_step)
 
         elif method["alg"] == "es":  # Monte Carlo Gaussian smoothing derivative
@@ -21,11 +22,11 @@ def approx_derivative(f, x, method):
             sigma = method["sigma"]
 
             d_in = len(x)
-            G = onp.random.randn(n, d_in)
+            G = ojnp.random.randn(n, d_in)
             J_est = None
 
             for g in G:
-                J_samp = onp.outer(f(x + sigma * g) - f(x - sigma * g), g) / 2
+                J_samp = ojnp.outer(f(x + sigma * g) - f(x - sigma * g), g) / 2
                 if J_est is None:
                     J_est = J_samp
                 else:
@@ -36,21 +37,22 @@ def approx_derivative(f, x, method):
     raise NotImplementedError
 
 
-class PlanarQuadrotor:
+class PlanarQuadrotor(Env):
     metadata = {"render.modes": ["human", "rgb_array"], "video.frames_per_second": 30}
 
     def __init__(self, placebo=0, autodiff=True, method="3-point"):
         self.nsamples = 0
         self.m, self.l, self.g, self.dt, self.H = 0.1, 0.2, 9.81, 0.05, 100
         self.initial_state, self.goal_state, self.goal_action = (
-            np.array([1.0, 1.0, 0.0, 0.0, 0.0, 0.0]),
-            np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0]),
-            np.array([self.m * self.g / 2.0, self.m * self.g / 2.0]),
+            jnp.array([1.0, 1.0, 0.0, 0.0, 0.0, 0.0]),
+            jnp.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0]),
+            jnp.array([self.m * self.g / 2.0, self.m * self.g / 2.0]),
         )
-        self.goal_action = np.hstack((self.goal_action, np.zeros(placebo)))
+        self.goal_action = jnp.hstack((self.goal_action, jnp.zeros(placebo)))
 
         self.viewer = None
         self.action_dim, self.state_dim = 2 + placebo, 6
+        self.last_u = jnp.zeros((2,))
 
         def f(x, u):
             self.nsamples += 1
@@ -58,10 +60,10 @@ class PlanarQuadrotor:
             x, y, th, xdot, ydot, thdot = state
             u1, u2 = u[:2]
             m, g, l, dt = self.m, self.g, self.l, self.dt
-            xddot = -(u1 + u2) * np.sin(th) / m
-            yddot = (u1 + u2) * np.cos(th) / m - g
+            xddot = -(u1 + u2) * jnp.sin(th) / m
+            yddot = (u1 + u2) * jnp.cos(th) / m - g
             thddot = l * (u2 - u1) / (m * l ** 2)
-            state_dot = np.array([xdot, ydot, thdot, xddot, yddot, thddot])
+            state_dot = jnp.array([xdot, ydot, thdot, xddot, yddot, thddot])
             new_state = state + state_dot * dt
             return new_state
 
@@ -83,10 +85,10 @@ class PlanarQuadrotor:
             return 2 * 0.1 * (u - self.goal_action)
 
         def c_xx(x, u):
-            return 2 * np.eye(self.state_dim)
+            return 2 * jnp.eye(self.state_dim)
 
         def c_uu(x, u):
-            return 2 * 0.1 * np.eye(self.action_dim)
+            return 2 * 0.1 * jnp.eye(self.action_dim)
 
         if autodiff:
             self.f, self.f_x, self.f_u = (

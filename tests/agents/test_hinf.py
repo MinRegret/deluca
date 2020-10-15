@@ -1,1 +1,1 @@
-"""tests.agents.test_hinf.py"""
+"""tests.agents.test_hinf"""

@@ -1,4 +1,4 @@
-"""deluca.agents._pid.py"""
+"""deluca.agents._pid"""
 from numbers import Real
 from typing import Sequence
 
@@ -25,6 +25,9 @@ class PID(Agent):
             K (Sequence[int]): sequence of PID parameters
             RC (Real): decay parameter
             dt (Real): time increment
+
+        Returns:
+            None
         """
         if not isinstance(K, Sequence) or len(K) != 3 or not all(isinstance(x, Real) for x in K):
             self.throw(ValueError, "K must be a list or tuple of 3 real numbers, P, I, and D")
@@ -46,7 +49,7 @@ class PID(Agent):
             state (jnp.ndarray): the error PID must compensate for
 
         Returns:
-            action (jnp.ndarray): action to take
+            jnp.ndarray: action to take
         """
         decay = self.dt / (self.dt + self.RC)
 

@@ -1,4 +1,4 @@
-"""deluca.agents._zero.py"""
+"""deluca.agents._zero"""
 from typing import Sequence
 
 import jax.numpy as jnp

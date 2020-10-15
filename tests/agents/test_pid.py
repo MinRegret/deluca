@@ -1,4 +1,4 @@
-"""tests.agents.test_pid.py"""
+"""tests.agents.test_pid"""
 import pytest
 
 from deluca.agents import PID

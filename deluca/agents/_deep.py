@@ -1,15 +1,42 @@
+"""deluca.agents._deep"""
+from numbers import Real
+
 import jax
 import jax.numpy as jnp
 
 from deluca.agents.core import Agent
+from deluca.envs.core import Env
 from deluca.utils import Random
 
 
 # generic deep controller
 class Deep(Agent):
+    """
+    Generic deep controller that uses zero-order methods to train on an
+    environment.
+    """
+
     def __init__(
-        self, env, learning_rate=0.001, gamma=0.99, max_episode_length=500, seed=0, **kwargs
-    ):
+        self,
+        env: Env,
+        learning_rate: Real = 0.001,
+        gamma: Real = 0.99,
+        max_episode_length: int = 500,
+        seed: int = 0,
+    ) -> None:
+        """
+        Description: initializes the Deep agent
+
+        Args:
+            env (Env): a deluca environment
+            learning_rate (Real):
+            gamma (Real):
+            max_episode_length (int):
+            seed (int):
+
+        Returns:
+            None
+        """
         # Create gym and seed numpy
         self.env = env
         self.max_episode_length = max_episode_length
@@ -20,11 +47,20 @@ class Deep(Agent):
 
         self.reset()
 
-    def reset(self):
+    def reset(self) -> None:
+        """
+        Description: reset agent
+
+        Args:
+            None
+
+        Returns:
+            None
+        """
         # Init weight
         self.W = jax.random.uniform(
             self.random.generate_key(),
-            shape=(self.env.observation_size, len(self.env.action_space)),
+            shape=(self.env.state_size, len(self.env.action_space)),
             minval=0,
             maxval=1,
         )
@@ -37,30 +73,58 @@ class Deep(Agent):
         self.episode_rewards = jnp.zeros(self.max_episode_length)
         self.episode_grads = jnp.zeros((self.max_episode_length, self.W.shape[0], self.W.shape[1]))
 
-    # Our policy that maps state to action parameterized by w
-    def policy(self, state, w):
+    def policy(self, state: jnp.ndarray, w: jnp.ndarray) -> jnp.ndarray:
+        """
+        Description: Policy that maps state to action parameterized by w
+
+        Args:
+            state (jnp.ndarray):
+            w (jnp.ndarray):
+        """
         z = jnp.dot(state, w)
         exp = jnp.exp(z)
         return exp / jnp.sum(exp)
 
-    # Vectorized softmax Jacobian
-    def softmax_grad(self, softmax):
+    def softmax_grad(self, softmax: jnp.ndarray) -> jnp.ndarray:
+        """
+        Description: Vectorized softmax Jacobian
+
+        Args:
+            softmax (jnp.ndarray)
+        """
         s = softmax.reshape(-1, 1)
         return jnp.diagflat(s) - jnp.dot(s, s.T)
 
-    def __call__(self, observation):
-        self.observation = observation
-        self.probs = self.policy(observation, self.W)
+    def __call__(self, state: jnp.ndarray):
+        """
+        Description: provide an action given a state
+
+        Args:
+            state (jnp.ndarray):
+
+        Returns:
+            jnp.ndarray: action to take
+        """
+        self.state = state
+        self.probs = self.policy(state, self.W)
         self.action = jax.random.choice(
             self.random.generate_key(), a=self.env.action_space, p=self.probs
         )
         return self.action
 
-    def feed(self, reward):
-        # Compute gradient and save with reward in memory for our weight updates
+    def feed(self, reward: Real) -> None:
+        """
+        Description: compute gradient and save with reward in memory for weight updates
+
+        Args:
+            reward (Real):
+
+        Returns:
+            None
+        """
         dsoftmax = self.softmax_grad(self.probs)[self.action, :]
         dlog = dsoftmax / self.probs[self.action]
-        grad = self.observation.reshape(-1, 1) @ dlog.reshape(1, -1)
+        grad = self.state.reshape(-1, 1) @ dlog.reshape(1, -1)
 
         self.episode_rewards = jax.ops.index_update(
             self.episode_rewards, self.current_episode_length, reward
@@ -69,10 +133,17 @@ class Deep(Agent):
             self.episode_grads, self.current_episode_length, grad
         )
         self.current_episode_length += 1
-        return self
 
-    def update(self):
-        # Weight update
+    def update(self) -> None:
+        """
+        Description: update weights
+        
+        Args:
+            None
+
+        Returns:
+            None
+        """
         for i in range(self.current_episode_length):
             # Loop through everything that happend in the episode and update
             # towards the log policy gradient times **FUTURE** reward
@@ -84,5 +155,6 @@ class Deep(Agent):
                     ]
                 )
             )
+
         # reset episode length
         self.current_episode_length = 0

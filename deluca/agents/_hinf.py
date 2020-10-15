@@ -1,3 +1,4 @@
+"""deluca.agents._hinf"""
 from numbers import Real
 from typing import Tuple
 
@@ -31,6 +32,9 @@ class Hinf(Agent):
             T (jnp.ndarray):
             Q (jnp.ndarray):
             R (jnp.ndarray):
+
+        Returns:
+            None
         """
         d_x, d_u = B.shape
 
@@ -43,7 +47,7 @@ class Hinf(Agent):
         self.K, self.W = solve_hinf(A, B, Q, R, T)
         self.t = 0
 
-    def __call__(self, state):
+    def __call__(self, state) -> jnp.ndarray:
         """
         Description: provide an action given a state
 
@@ -75,6 +79,9 @@ def solve_hinf(
         T (jnp.ndarray):
         Q (jnp.ndarray):
         R (jnp.ndarray):
+
+    Returns
+        Tuple[jnp.ndarray, jnp.ndarray]:
     """
     gamma_low, gamma_high = gamma_range
     n, m = B.shape
@@ -102,8 +109,15 @@ def solve_hinf(
     return K, W
 
 
-def is_psd(P, gamma):
+def is_psd(P: jnp.ndarray, gamma: Real) -> bool:
     """
     Description: check if a matrix is positive semi-definite
+
+    Args:
+        P (jnp.ndarray): 
+        gamma (Real): 
+
+    Returns:
+        bool: 
     """
     return jnp.all(jnp.linalg.eigvals(P) < gamma ** 2 + 1e-5)

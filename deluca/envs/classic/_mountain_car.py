@@ -18,7 +18,7 @@ from deluca.envs.core import Env
 from deluca.utils import Random
 
 
-class MountainCarContinuous(Env):
+class MountainCar(Env):
     def __init__(self, goal_velocity=0, seed=0):
         self.min_action = -1.0
         self.max_action = 1.0

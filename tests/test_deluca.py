@@ -1,3 +1,4 @@
+"""tests.test_deluca"""
 from deluca import __version__
 
 

@@ -1,4 +1,4 @@
-"""tests.agents.test_zero.py"""
+"""tests.agents.test_zero"""
 import pytest
 
 from deluca.agents import Zero
