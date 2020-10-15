@@ -1,10 +1,10 @@
 import jax.numpy as jnp
 
-from deluca.envs.core import Env
 from deluca.envs.lung import BreathWaveform
+from deluca.envs.lung.core import Lung
 
 
-class DelayLung(Env):
+class DelayLung(Lung):
     def __init__(
         self,
         min_volume=1.5,

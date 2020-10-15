@@ -88,3 +88,8 @@ class Env(JaxObject, gym.Env):
 
     def hessian(self, func, state, action):
         return jax.hessian(func, argnums=(0, 1))(state, action)
+
+    def close(self):
+        if self.viewer:
+            self.viewer.close()
+            self.viewer = None

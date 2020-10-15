@@ -283,3 +283,40 @@ def rk4(derivs, y0, t, *args, **kwargs):
         yout = jax.ops.index_update(yout, i + 1, y0 + dt / 6.0 * (k1 + 2 * k2 + 2 * k3 + k4))
 
     return yout
+
+    def render(self, mode="human"):
+        from gym.envs.classic_control import rendering
+
+        s = self.state
+
+        if self.viewer is None:
+            self.viewer = rendering.Viewer(500, 500)
+            bound = self.LINK_LENGTH_1 + self.LINK_LENGTH_2 + 0.2  # 2.2 for default
+            self.viewer.set_bounds(-bound, bound, -bound, bound)
+
+        if s is None:
+            return None
+
+        p1 = [-self.LINK_LENGTH_1 * cos(s[0]), self.LINK_LENGTH_1 * sin(s[0])]
+
+        p2 = [
+            p1[0] - self.LINK_LENGTH_2 * cos(s[0] + s[1]),
+            p1[1] + self.LINK_LENGTH_2 * sin(s[0] + s[1]),
+        ]
+
+        xys = np.array([[0, 0], p1, p2])[:, ::-1]
+        thetas = [s[0] - pi / 2, s[0] + s[1] - pi / 2]
+        link_lengths = [self.LINK_LENGTH_1, self.LINK_LENGTH_2]
+
+        self.viewer.draw_line((-2.2, 1), (2.2, 1))
+        for ((x, y), th, llen) in zip(xys, thetas, link_lengths):
+            l, r, t, b = 0, llen, 0.1, -0.1
+            jtransform = rendering.Transform(rotation=th, translation=(x, y))
+            link = self.viewer.draw_polygon([(l, b), (l, t), (r, t), (r, b)])
+            link.add_attr(jtransform)
+            link.set_color(0, 0.8, 0.8)
+            circ = self.viewer.draw_circle(0.1)
+            circ.set_color(0.8, 0.8, 0)
+            circ.add_attr(jtransform)
+
+        return self.viewer.render(return_rgb_array=mode == "rgb_array")

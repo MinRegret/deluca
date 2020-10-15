@@ -1,3 +1,5 @@
+from os import path
+
 import gym
 import jax
 import jax.numpy as jnp
@@ -63,3 +65,29 @@ class Pendulum(Env):
         thdot = jax.random.uniform(self.random.generate_key(), minval=-1.0, maxval=1.0)
 
         self.state = jnp.array([th, thdot])
+
+    def render(self, mode="human"):
+        if self.viewer is None:
+            from gym.envs.classic_control import rendering
+
+            self.viewer = rendering.Viewer(500, 500)
+            self.viewer.set_bounds(-2.2, 2.2, -2.2, 2.2)
+            rod = rendering.make_capsule(1, 0.2)
+            rod.set_color(0.8, 0.3, 0.3)
+            self.pole_transform = rendering.Transform()
+            rod.add_attr(self.pole_transform)
+            self.viewer.add_geom(rod)
+            axle = rendering.make_circle(0.05)
+            axle.set_color(0, 0, 0)
+            self.viewer.add_geom(axle)
+            fname = path.join(path.dirname(__file__), "assets/clockwise.png")
+            self.img = rendering.Image(fname, 1.0, 1.0)
+            self.imgtrans = rendering.Transform()
+            self.img.add_attr(self.imgtrans)
+
+        self.viewer.add_onetime(self.img)
+        self.pole_transform.set_rotation(self.state[0] + np.pi / 2)
+        if self.last_u:
+            self.imgtrans.scale = (-self.last_u / 2, np.abs(self.last_u) / 2)
+
+        return self.viewer.render(return_rgb_array=mode == "rgb_array")
