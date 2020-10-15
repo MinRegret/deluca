@@ -20,7 +20,7 @@ jobs:
           pip install -e .[dev]
       - name: Lint with flake8
         run: |
-          flake8 . --count --show-source --statistics --ignore=E203 --max-complexity=15
+          flake8 . --count --show-source --statistics --ignore=E203,E741 --max-complexity=15
       - name: Check formatting
         run: |
           black --check --line-length=100 .
