@@ -3,8 +3,9 @@ from os import path
 import jax
 import jax.numpy as jnp
 import numpy as ojnp
-from jym.envs.core import Env
 from scipy.optimize._numdiff import approx_derivative as scipy_approx_derivative
+
+from deluca.envs.core import Env
 
 
 def approx_derivative(f, x, method):
