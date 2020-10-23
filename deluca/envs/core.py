@@ -29,7 +29,7 @@ class Env(JaxObject, gym.Env):
 
     def __new__(cls, *args, **kwargs):
         """For avoiding super().__init__()"""
-        obj = super().__new__(cls)
+        obj = super().__new__(cls, *args, **kwargs)
 
         obj.__setattr__("reward_fn", default_reward)
 

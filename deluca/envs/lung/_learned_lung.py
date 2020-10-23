@@ -1,3 +1,6 @@
+import inspect
+
+import dill as pickle
 import jax.numpy as jnp
 
 from deluca.envs.lung import BreathWaveform
@@ -7,79 +10,106 @@ from deluca.envs.lung.core import Lung
 class LearnedLung(Lung):
     def __init__(
         self,
-        min_volume=1.5,
-        R_lung=10,
-        C_lung=6,
-        delay=25,
-        inertia=0.995,
-        control_gain=0.02,
+        weights,
+        pressure_mean=0.0,
+        pressure_std=1.0,
+        PEEP=5,
+        input_dim=3,
+        history_len=5,
         dt=0.03,
         waveform=None,
         reward_fn=None,
     ):
+        self.weights = weights
+        self.pressure_mean = pressure_mean
+        self.pressure_std = pressure_std
+        self.input_dim = input_dim
+        self.history_len = history_len
+        self.dt = dt
+        self.PEEP = PEEP
         self.waveform = waveform or BreathWaveform()
-        self.r0 = (3 * self.min_volume / (4 * jnp.pi)) ** (1 / 3)
         self.reset()
 
     def reset(self):
-        self.volume = self.min_volume
-        self.pipe_pressure = 0
-        self.in_history = jnp.zeros(self.delay)
-        self.out_history = jnp.zeros(self.delay)
-        self.T = 0
+        # pressure
+        self.pressure = 0
+        self.time = 0
 
-        self.state = (self.volume, self.pipe_pressure)
+        # NOTE: we don't combine this into a single trajectory because we must
+        # roll these arrays at different times (e.g., u_ins, u_outs before
+        # running through model, normalized pressures after)
+        self.u_ins = jnp.zeros(self.history_len)
+        self.u_outs = jnp.zeros(self.history_len)
+        self.normalized_pressures = (
+            jnp.ones(self.history_len) * (self.PEEP - self.pressure_mean) / self.pressure_std
+        )
+
         return self.observation
+
+    @classmethod
+    def from_torch(cls, path):
+        torch_sim = pickle.load(open(path, "rb"))
+        args = {
+            key: val
+            for key, val in torch_sim.items()
+            if key in inspect.signature(LearnedLung.__init__).parameters.keys()
+        }
+        sim = cls(**args)
+
+        weights = []
+        for weight in sim.weights:
+            weights.append(jnp.array(weight))
+
+        sim.weights = weights
+
+        return sim
 
     @property
     def observation(self):
         return {
-            "measured": self.state["pressure"],
-            "target": self.target,
+            "measured": self.pressure,
+            "target": self.waveform.at(self.time),
             "dt": self.dt,
             "phase": self.waveform.phase(self.time),
         }
 
     def dynamics(self, state, action):
         """
-        state: (volume, pressure)
+        pressure: (u_in, u_out, normalized pressure) histories
         action: (u_in, u_out)
         """
-        flow = self.state["pressure"] / self.R_lung
-        volume = self.state["volume"] + flow * self.dt
-        volume = jnp.maximum(volume, self.min_volume)
 
-        r = (3.0 * self.volume / (4.0 * jnp.pi)) ** (1.0 / 3.0)
-        lung_pressure = self.C_lung * (1 - (self.r0 / r) ** 6) / (self.r0 ** 2 * r)
+        u_ins, u_outs, normalized_pressures = state
+        u_in, u_out = action
 
-        if self.T < self.delay:
-            pipe_impulse = 0
-            peep = 0
-        else:
-            pipe_impulse = self.control_gain * self.in_history[0]
-            peep = self.out_history[0]
+        u_in /= 50.0
+        u_out = u_out * 2.0 - 1.0
 
-        pipe_pressure = self.inertia * state["pipe_pressure"] + pipe_impulse
-        pressure = jnp.maximum(0, pipe_pressure - lung_pressure)
+        u_ins = jnp.roll(u_ins, shift=-1)
+        u_ins = u_ins.at[-1].set(u_in)
+        u_outs = jnp.roll(u_outs, shift=-1)
+        u_outs = u_outs.at[-1].set(u_out)
 
-        if peep:
-            pipe_pressure *= 0.995
+        normalized_pressure = state
+        for i in range(len(self.weights) / 2):
+            normalized_pressure = self.weights[i] @ normalized_pressure + self.weights[i + 1]
 
-        return volume, pressure, pipe_pressure
+        normalized_pressures = jnp.roll(normalized_pressures=-1)
+        normalized_pressures = normalized_pressures.at[-1].set(normalized_pressure)
+
+        return u_ins, u_outs, normalized_pressures
 
     def step(self, action):
-        u_in, u_out = action
-        u_in = max(0, u_in)
+        self.u_ins, self.u_outs, self.normalized_pressures = self.dynamics(
+            (self.u_ins, self.u_outs, self.normalized_pressures), action
+        )
 
-        self.in_history = jnp.roll(self.in_history, shift=1)
-        self.in_history = self.in_history.at[0].set(u_in)
-        self.out_history = jnp.roll(self.out_history, shift=1)
-        self.out_history = self.out_history.at[0].set(u_out)
+        self.pressure = (self.normalized_pressures[-1] * self.pressure_std) + self.pressure_mean
+        self.pressure = jnp.clip(self.pressure, 0.0, 100.0)
 
         self.target = self.waveform.at(self.time)
-        reward = -jnp.abs(self.target - self.state["pressure"])
+        reward = -jnp.abs(self.target - self.pressure)
 
-        self.state = self.dynamics(self.state, action)
-        self.T += 1
+        self.time += self.dt
 
         return self.observation, reward, False, {}

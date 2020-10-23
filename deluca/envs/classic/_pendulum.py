@@ -66,6 +66,8 @@ class Pendulum(Env):
 
         self.state = jnp.array([th, thdot])
 
+        return self.state
+
     def render(self, mode="human"):
         if self.viewer is None:
             from gym.envs.classic_control import rendering
