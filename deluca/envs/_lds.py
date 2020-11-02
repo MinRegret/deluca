@@ -37,6 +37,9 @@ class LDS(Env):
 
         self.reset()
 
+    def step(self, action):
+        self.state = self.A @ self.state + self.B @ action
+
     @jax.jit
     def dynamics(self, state, action):
         new_state = self.A @ state + self.B @ action
