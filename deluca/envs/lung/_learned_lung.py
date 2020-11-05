@@ -39,7 +39,7 @@ class LearnedLung(Lung):
         # roll these arrays at different times (e.g., u_ins, u_outs before
         # running through model, normalized pressures after)
         self.u_ins = jnp.zeros(self.history_len)
-        self.u_outs = jnp.zeros(self.history_len)
+        self.u_outs = jnp.ones(self.history_len)
         self.normalized_pressures = (
             jnp.ones(self.history_len) * (self.PEEP - self.pressure_mean) / self.pressure_std
         )
@@ -90,12 +90,14 @@ class LearnedLung(Lung):
         u_outs = jnp.roll(u_outs, shift=-1)
         u_outs = u_outs.at[-1].set(u_out)
 
-        normalized_pressure = state
-        for i in range(len(self.weights) / 2):
+        normalized_pressure = jnp.concatenate((u_ins, u_outs, normalized_pressures))
+        for i in range(0, len(self.weights), 2):
             normalized_pressure = self.weights[i] @ normalized_pressure + self.weights[i + 1]
+            if i <= len(self.weights) - 4:
+                normalized_pressure = jnp.tanh(normalized_pressure)
 
-        normalized_pressures = jnp.roll(normalized_pressures=-1)
-        normalized_pressures = normalized_pressures.at[-1].set(normalized_pressure)
+        normalized_pressures = jnp.roll(normalized_pressures, shift=-1)
+        normalized_pressures = normalized_pressures.at[-1].set(normalized_pressure.squeeze())
 
         return u_ins, u_outs, normalized_pressures
 
@@ -104,6 +106,7 @@ class LearnedLung(Lung):
             (self.u_ins, self.u_outs, self.normalized_pressures), action
         )
 
+        print(self.normalized_pressures[-1])
         self.pressure = (self.normalized_pressures[-1] * self.pressure_std) + self.pressure_mean
         self.pressure = jnp.clip(self.pressure, 0.0, 100.0)
 
