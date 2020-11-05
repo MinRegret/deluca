@@ -106,7 +106,6 @@ class LearnedLung(Lung):
             (self.u_ins, self.u_outs, self.normalized_pressures), action
         )
 
-        print(self.normalized_pressures[-1])
         self.pressure = (self.normalized_pressures[-1] * self.pressure_std) + self.pressure_mean
         self.pressure = jnp.clip(self.pressure, 0.0, 100.0)
 
