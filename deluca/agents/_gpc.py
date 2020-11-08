@@ -29,7 +29,6 @@ def quad_loss(x: jnp.ndarray, u: jnp.ndarray) -> Real:
 class GPC(Agent):
     def __init__(
         self,
-        T: int,
         A: jnp.ndarray,
         B: jnp.ndarray,
         Q: jnp.ndarray = None,
@@ -39,8 +38,7 @@ class GPC(Agent):
         cost_fn: Callable[[jnp.ndarray, jnp.ndarray], Real] = None,
         H: int = 3,
         HH: int = 2,
-        lr_scale: Real = 0.0001,
-        lr_scale_decay: Real = 1.0,
+        lr_scale: Real = 0.005,
         decay: bool = True,
     ) -> None:
         """
@@ -67,20 +65,11 @@ class GPC(Agent):
 
         self.A, self.B = A, B  # System Dynamics
 
-        self.T = T - start_time
         self.t = 0  # Time Counter (for decaying learning rate)
 
         self.H, self.HH = H, HH
 
-        def fixed_lr(_):
-            """Fixed learning rate"""
-            return lr_scale
-
-        def decay_lr(t):
-            """Decay learning rate"""
-            lr_scale_decay / (1 + t)
-
-        self.lr_fn = decay_lr if decay else fixed_lr
+        self.lr_scale, self.decay = lr_scale, decay
 
         # Model Parameters
         # initial linear policy / perturbation contributions / bias
@@ -129,13 +118,12 @@ class GPC(Agent):
         Returns:
            jnp.ndarray: action to take
         """
-        state = state.reshape(self.state.shape)
 
         action = self.get_action(state)
-        self.update(state)
-        return action.squeeze()
+        self.update(state, action)
+        return action
 
-    def update(self, state: jnp.ndarray) -> None:
+    def update(self, state: jnp.ndarray, u:jnp.ndarray) -> None:
         """
         Description: update agent internal state.
 
@@ -145,11 +133,21 @@ class GPC(Agent):
         Returns:
             None
         """
-        self._update_params()
-        self._update_noise(state)
-        self._update_history(state)
+        noise = state - self.A @ self.state - self.B @ u
+        self.noise_history = jax.ops.index_update(self.noise_history, 0, noise)
+        self.noise_history = jnp.roll(self.noise_history, -1, axis=0)
 
-        self.t = self.t + 1
+        delta_M, delta_bias = self.grad(self.M, self.noise_history)
+
+        lr = self.lr_scale
+        lr *= (1/ (self.t+1)) if self.decay else 1
+        self.M -= lr * delta_M
+        self.M -= lr * delta_M
+
+        # update state
+        self.state = state
+
+        self.t += 1
 
     def get_action(self, state: jnp.ndarray) -> jnp.ndarray:
         """
@@ -162,23 +160,3 @@ class GPC(Agent):
             jnp.ndarray
         """
         return -self.K @ state + jnp.tensordot(self.M, self.last_h_noises(), axes=([0, 2], [0, 1]))
-
-    def _update_params(self) -> None:
-        """Update parameters"""
-        delta_M, delta_bias = self.grad(self.M, self.noise_history)
-
-        lr = self.lr_fn(self.t)
-        self.M -= lr * delta_M
-
-    def _update_noise(self, state: jnp.ndarray) -> None:
-        """Update noise"""
-        noise = state - self.A @ self.state - self.B @ self.action
-        self.noise_history = jax.ops.index_update(self.noise_history, 0, noise)
-        self.noise_history = jnp.roll(self.noise_history, -1, axis=0)
-
-    def _update_history(self, state) -> None:
-        """Update history"""
-        self.state = state
-        self.action = -self.K @ state + jnp.tensordot(
-            self.M, self.last_h_noises(), axes=([0, 2], [0, 1])
-        )

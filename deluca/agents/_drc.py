@@ -36,8 +36,9 @@ class DRC(Agent):
         cost_fn: Callable[[jnp.ndarray, jnp.ndarray], Real] = None,
         m: int = 10,
         h: int = 50,
-        lr_scale: Real = 0.01,
-        decay: bool = False,
+        lr_scale: Real = 0.03,
+        decay: bool = True,
+        RM: int = 1000,
         seed: int = 0
     ) -> None:
         """
@@ -74,6 +75,8 @@ class DRC(Agent):
         self.m, self.h = m, h
 
         self.lr_scale, self.decay = lr_scale, decay
+
+        self.RM = RM
 
         # Construct truncated markov operator G
         self.G = jnp.zeros((h, d_obs, d_action))
@@ -117,25 +120,60 @@ class DRC(Agent):
         Returns:
            jnp.ndarray: action to take
         """
-
         # update y_nat
+        self.update_noise(obs)
+
+        # get action
+        action = self.get_action(obs)
+
+        # update Parameters
+        self.update_params(obs, action)
+
+        return action
+
+    def get_action(self, obs: jnp.ndarray) -> jnp.ndarray:
+        """
+        Description: get action from state.
+
+        Args:
+            state (jnp.ndarray):
+
+        Returns:
+            jnp.ndarray
+        """
+
+        return -self.K @ obs + jnp.tensordot(self.M, self.y_nat, axes=([0, 2], [0, 1]))
+
+    def update(self, obs: jnp.ndarray, u:  jnp.ndarray) -> None:
+        self.update_noise(obs)
+        self.update_params(obs,u)
+
+    def update_noise(self, obs: jnp.ndarray) -> None:
         y_nat = obs - jnp.tensordot(self.G, self.us, axes=([0, 2], [0, 1]))
         self.y_nat = jnp.roll(self.y_nat, 1, axis=0)
         self.y_nat = jax.ops.index_update(self.y_nat, 0, y_nat)
 
-        # get action
-        action = -self.K @ obs + jnp.tensordot(self.M, self.y_nat, axes=([0, 2], [0, 1]))
+    def update_params(self, obs: jnp.ndarray, u:  jnp.ndarray) -> None:
+        """
+        Description: update agent internal state.
+
+        Args:
+            state (jnp.ndarray):
+
+        Returns:
+            None
+        """
 
         # update parameters
         delta_M = self.grad(self.M, self.G, self.y_nat, self.us)
         lr = self.lr_scale
         lr *= (1/ (self.t+1)) if self.decay else 1
         self.M -= lr * delta_M
+        if(jnp.linalg.norm(self.M) > self.RM):
+            self.M *= (self.RM / jnp.linalg.norm(self.M))
 
         # update us
         self.us = jnp.roll(self.us, 1, axis=0)
-        self.us = jax.ops.index_update(self.us, 0, action)
+        self.us = jax.ops.index_update(self.us, 0, u)
 
         self.t += 1
-
-        return action
