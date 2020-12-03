@@ -5,7 +5,7 @@ from deluca.utils import Random
 
 
 class LDS(Env):
-    def __init__(self, state_size=1, action_size=1, A=None, B=None, seed=0):
+    def __init__(self, state_size=1, action_size=1, A=None, B=None, C=None, seed=0):
 
         if A is not None:
             assert (
@@ -33,9 +33,19 @@ class LDS(Env):
             else jax.random.normal(self.random.generate_key(), shape=(state_size, action_size))
         )
 
+        self.C = (
+            C
+            if C is not None
+            else jax.numpy.identity(self.state_size)
+        )
+
         self.t = 0
 
         self.reset()
+
+    def step(self, action):
+        self.state = self.A @ self.state + self.B @ action
+        self.obs = self.C @ self.state
 
     @jax.jit
     def dynamics(self, state, action):
@@ -44,3 +54,4 @@ class LDS(Env):
 
     def reset(self):
         self.state = jax.random.normal(self.random.generate_key(), shape=(self.state_size, 1))
+        self.obs = self.C @ self.state

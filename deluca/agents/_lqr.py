@@ -49,4 +49,4 @@ class LQR(Agent):
         Returns:
            jnp.ndarray: action to take
         """
-        return (-self.K @ state).squeeze()
+        return -self.K @ state
