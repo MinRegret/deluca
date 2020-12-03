@@ -5,5 +5,6 @@ from deluca.agents._lqr import LQR
 from deluca.agents._pid import PID
 from deluca.agents._zero import Zero
 from deluca.agents._drc import DRC
+from deluca.agents._adaptive import Adaptive
 
-__all__ = ["LQR", "PID", "GPC", "ILQR", "Hinf", "Zero", "DRC"]
+__all__ = ["LQR", "PID", "GPC", "ILQR", "Hinf", "Zero", "DRC", "Adaptive"]
