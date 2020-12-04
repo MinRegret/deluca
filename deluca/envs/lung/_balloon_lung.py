@@ -73,6 +73,7 @@ class BalloonLung(Lung):
         self.reset()
 
     def reset(self):
+        self.time = 0.0
         self.target = self.waveform.at(self.time)
         self.volume, self.pressure = self.dynamics((self.min_volume, -1.0), (0.0, 0.0))
         return self.observation
@@ -124,3 +125,4 @@ class BalloonLung(Lung):
         self.time += self.dt
 
         return self.observation, reward, False, {}
+
