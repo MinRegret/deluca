@@ -51,11 +51,12 @@ class LearnedLung(Lung):
         # NOTE: we don't combine this into a single trajectory because we must
         # roll these arrays at different times (e.g., u_ins, u_outs before
         # running through model, normalized pressures after)
-        self.u_ins = jnp.zeros(self.history_len)
-        self.u_outs = jnp.ones(self.history_len)
-        self.normalized_pressures = (
+        u_ins = jnp.zeros(self.history_len)
+        u_outs = jnp.ones(self.history_len)
+        normalized_pressures = (
             jnp.ones(self.history_len) * (self.PEEP - self.pressure_mean) / self.pressure_std
         )
+        self.state = {'u_ins': u_ins, 'u_outs': u_outs, 'normalized_pressures': normalized_pressures}
 
         return self.observation
 
@@ -92,7 +93,7 @@ class LearnedLung(Lung):
         action: (u_in, u_out)
         """
 
-        u_ins, u_outs, normalized_pressures = state
+        u_ins, u_outs, normalized_pressures = state['u_ins'], state['u_outs'], state['normalized_pressures']
         u_in, u_out = action
 
         u_in /= 50.0
@@ -112,14 +113,11 @@ class LearnedLung(Lung):
         normalized_pressures = jnp.roll(normalized_pressures, shift=-1)
         normalized_pressures = normalized_pressures.at[-1].set(normalized_pressure.squeeze())
 
-        return u_ins, u_outs, normalized_pressures
+        return {'u_ins': u_ins, 'u_outs': u_outs, 'normalized_pressures': normalized_pressures}
 
     def step(self, action):
-        self.u_ins, self.u_outs, self.normalized_pressures = self.dynamics(
-            (self.u_ins, self.u_outs, self.normalized_pressures), action
-        )
-
-        self.pressure = (self.normalized_pressures[-1] * self.pressure_std) + self.pressure_mean
+        self.state = self.dynamics(self.state, action)
+        self.pressure = (self.state['normalized_pressures'][-1] * self.pressure_std) + self.pressure_mean
         self.pressure = jnp.clip(self.pressure, 0.0, 100.0)
 
         self.target = self.waveform.at(self.time)
