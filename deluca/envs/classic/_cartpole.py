@@ -101,7 +101,8 @@ class CartPole(Env):
             dtype=np.float32,
         )
 
-        self.action_space = jnp.array([0, 1])
+        # self.action_space = jnp.array([0, 1])
+        self.action_space = gym.spaces.Box(low=0, high=1, shape=(1,))
         # TODO: no longer use gym.spaces
         self.observation_space = gym.spaces.Box(-high, high, dtype=np.float32)
 

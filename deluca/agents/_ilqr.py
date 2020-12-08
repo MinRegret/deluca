@@ -77,7 +77,7 @@ def rollout(env, U_old, k=None, K=None, X_old=None, alpha=1.0, render=False):
             U[h] = U_old[h]
         else:
             U[h] = U_old[h] + alpha * k[h] + K[h] @ (X[h] - X_old[h])
-        X[h + 1], instant_cost = env.step(U[h])
+        X[h + 1], instant_cost, _, _ = env.step(U[h])
         cost += instant_cost
         if render:
             env.render()

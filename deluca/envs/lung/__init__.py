@@ -15,7 +15,7 @@
 # - interp smh
 import jax.numpy as jnp
 
-from deluca import JaxObject
+from deluca.core import JaxObject
 
 DEFAULT_PRESSURE_RANGE = (5.0, 35.0)
 DEFAULT_KEYPOINTS = [1e-8, 1.0, 1.5, 3.0]

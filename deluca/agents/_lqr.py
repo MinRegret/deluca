@@ -17,7 +17,7 @@ from scipy.linalg import solve_discrete_are as dare
 
 from deluca.agents.core import Agent
 
-
+# TODO: need to address problem of LQR with jax.lax.scan
 class LQR(Agent):
     """
     LQR

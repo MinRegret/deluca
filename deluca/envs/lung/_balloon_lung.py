@@ -73,14 +73,15 @@ class BalloonLung(Lung):
         self.reset()
 
     def reset(self):
+        self.time = 0.0
         self.target = self.waveform.at(self.time)
-        self.volume, self.pressure = self.dynamics((self.min_volume, -1.0), (0.0, 0.0))
+        self.state = self.dynamics({'volume': self.min_volume, 'pressure': -1.0}, (0.0, 0.0))
         return self.observation
 
     @property
     def observation(self):
         return {
-            "measured": self.pressure,
+            "measured": self.state['pressure'],
             "target": self.target,
             "dt": self.dt,
             "phase": self.waveform.phase(self.time),
@@ -91,7 +92,7 @@ class BalloonLung(Lung):
         state: (volume, pressure)
         action: (u_in, u_out)
         """
-        volume, pressure = state
+        volume, pressure = state['volume'], state['pressure']
         u_in, u_out = action
 
         flow = jnp.clip(PropValve(u_in) * self.R, 0.0, 2.0)
@@ -114,12 +115,12 @@ class BalloonLung(Lung):
         pressure = self.P0 + self.PC * (1.0 - (self.r0 / r) ** 6.0) / (self.r0 ** 2.0 * r)
         # pressure = flow * self.R + volume / self.C + self.peep_valve
 
-        return volume, pressure
+        return {'volume': volume, 'pressure': pressure}
 
     def step(self, action):
         self.target = self.waveform.at(self.time)
-        reward = -jnp.abs(self.target - self.pressure)
-        self.volume, self.pressure = self.dynamics((self.volume, self.pressure), action)
+        reward = -jnp.abs(self.target - self.state['pressure'])
+        self.state = self.dynamics(self.state, action)
 
         self.time += self.dt
 

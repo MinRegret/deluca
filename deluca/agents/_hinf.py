@@ -52,13 +52,16 @@ class Hinf(Agent):
         d_x, d_u = B.shape
 
         if Q is None:
-            Q = jnp.identity(d_x, dtype=jnp.float32)
+            self.Q = jnp.identity(d_x, dtype=jnp.float32)
 
         if R is None:
-            R = jnp.identity(d_u, dtype=jnp.float32)
+            self.R = jnp.identity(d_u, dtype=jnp.float32)
 
-        self.K, self.W = solve_hinf(A, B, Q, R, T)
+        # self.K, self.W = solve_hinf(A, B, Q, R, T)
         self.t = 0
+    
+    def train(self, A, B, T):
+        self.K, self.W = solve_hinf(A, B, self.Q, self.R, T)
 
     def __call__(self, state) -> jnp.ndarray:
         """
@@ -73,7 +76,6 @@ class Hinf(Agent):
         action = -self.K[self.t] @ state
         self.t += 1
         return action
-
 
 def solve_hinf(
     A: jnp.ndarray,

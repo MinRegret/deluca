@@ -46,14 +46,56 @@ class Pendulum(Env):
 
         self.state_size = 2
         self.action_size = 1
+        self.action_dim = 1 # redundant with action_size but needed by ILQR
+        
+        self.H = 50
 
         self.n, self.m = 2, 1
         self.angle_normalize = angle_normalize
+        self.nsamples = 0
 
         self.random = Random(seed)
 
         self.reset()
+        
+        # @jax.jit
+        def _dynamics(state, action):
+            self.nsamples += 1
+            th, thdot = state
+            g = 10.0
+            m = 1.0
+            ell = 1.0
+            dt = self.dt
 
+            # Do not limit the control signals
+            action = jnp.clip(action, -self.max_torque, self.max_torque)
+
+            newthdot = (
+                thdot + (-3 * g / (2 * ell) * jnp.sin(th + jnp.pi) + 3.0 / (m * ell ** 2) * action) * dt
+            )
+            newth = th + newthdot * dt
+            newthdot = jnp.clip(newthdot, -self.max_speed, self.max_speed)
+
+            return jnp.reshape(jnp.array([newth, newthdot]), (2,))
+        
+        @jax.jit
+        def c(x, u):
+            return angle_normalize(x[0])**2 + .1*(u[0]**2)
+        self.dynamics = _dynamics
+        self.f, self.f_x, self.f_u = (
+                _dynamics,
+                jax.jacfwd(_dynamics, argnums=0),
+                jax.jacfwd(_dynamics, argnums=1),
+            )
+        self.c, self.c_x, self.c_u, self.c_xx, self.c_uu = (
+                c,
+                jax.grad(c, argnums=0),
+                jax.grad(c, argnums=1),
+                jax.hessian(c, argnums=0),
+                jax.hessian(c, argnums=1),
+            )
+        
+    '''
     @jax.jit
     def dynamics(self, state, action):
         th, thdot = state
@@ -71,7 +113,7 @@ class Pendulum(Env):
         newth = th + newthdot * dt
         newthdot = jnp.clip(newthdot, -self.max_speed, self.max_speed)
 
-        return jnp.array([newth, newthdot])
+        return jnp.array([newth, newthdot])'''
 
     def reset(self):
         th = jax.random.uniform(self.random.generate_key(), minval=-jnp.pi, maxval=jnp.pi)
