@@ -2,6 +2,8 @@
 
 Performant, differentiable reinforcement learning
 
+NOTE: this is pre-alpha software and is undergoing a number of core changes. Updates to follow.
+
 [![pypi](https://badgen.net/pypi/v/deluca)](https://pypi.org/project/deluca/)
 [![pyversions](https://raw.githubusercontent.com/MinRegret/deluca/dev/.github/badges/python_versions.svg)](https://pypi.org/project/deluca)
 [![security: bandit](https://raw.githubusercontent.com/MinRegret/deluca/dev/.github/badges/bandit.svg)](https://github.com/PyCQA/bandit)
