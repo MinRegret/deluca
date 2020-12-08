@@ -84,7 +84,7 @@ class Adaptive(Agent):
         self.x, self.u = jnp.zeros((self.n, 1)), jnp.zeros((self.m, 1))
 
         # Alive set
-        self.alive = set([0]) # Keep track of alive experts
+        self.alive = jnp.zeros((T,))
 
         # Precompute time of death at initialization
         self.tod = np.arange(T)
@@ -116,7 +116,7 @@ class Adaptive(Agent):
         self.u = self.learners[play_i].get_action(x)
 
         # Update alive models
-        for i in self.alive:
+        for i in jnp.nonzero(self.alive)[0]:
             loss_i = self.policy_loss(self.learners[i],A, B, x, self.w)
             self.weights[i] *= np.exp(-self.eta * loss_i)
             self.weights[i] = min(max(self.weights[i], self.eps), self.inf)
@@ -126,7 +126,7 @@ class Adaptive(Agent):
 
         # One is born every expert_density steps
         if(self.t%self.expert_density==0):
-            self.alive.add(self.t)
+            self.alive = jax.ops.index_update(self.alive, self.t, 1)
             self.weights[self.t] = self.eps
             self.learners[self.t] = self.base_controller(A, B, cost_fn=self.cost_fn)
             self.learners[self.t].x = x
@@ -135,8 +135,8 @@ class Adaptive(Agent):
         kill_list = jnp.where(self.tod == self.t)
         if len(kill_list[0]):
             kill = int(kill_list[0][0])
-            if(kill in self.alive):
-                self.alive.remove(kill)
+            if(self.alive[kill]):
+                self.alive = jax.ops.index_update(self.alive, kill, 0)
                 del self.learners[kill]
                 self.weights[kill] = 0
 

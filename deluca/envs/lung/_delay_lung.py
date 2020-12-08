@@ -90,7 +90,7 @@ class DelayLung(Lung):
         pipe_pressure = self.inertia * state["pipe_pressure"] + pipe_impulse
         pressure = jnp.maximum(0, pipe_pressure - lung_pressure)
 
-        pipe_pressure = jax.lax.cond(peep is not None,
+        pipe_pressure = jax.lax.cond(peep,
                                      lambda x: x * 0.995,
                                      lambda x: x,
                                      pipe_pressure)

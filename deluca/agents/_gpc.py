@@ -86,7 +86,8 @@ class GPC(Agent):
 
         # Model Parameters
         # initial linear policy / perturbation contributions / bias
-        self.K = K if K is not None else LQR(self.A, self.B, Q, R).K
+        # TODO: need to address problem of LQR with jax.lax.scan
+        self.K = K if K is not None else LQR(self.A, self.B, Q, R).K 
 
         self.M = jnp.zeros((H, d_action, d_state))
 

@@ -180,13 +180,29 @@ class DRC(Agent):
         # update parameters
         delta_M = self.grad(self.M, self.G, self.y_nat, self.us)
         lr = self.lr_scale
-        lr *= (1/ (self.t+1)) if self.decay else 1
+        # lr *= (1/ (self.t+1)) if self.decay else 1
+        lr = jax.lax.cond(self.decay,
+                          lambda x : x * 1/(self.t+1),
+                          lambda x : 1.0,
+                          lr)
+        
+        
         self.M -= lr * delta_M
-        if(jnp.linalg.norm(self.M) > self.RM):
-            self.M *= (self.RM / jnp.linalg.norm(self.M))
-
+        # if(jnp.linalg.norm(self.M) > self.RM):
+        #     self.M *= (self.RM / jnp.linalg.norm(self.M))
+        
+        self.M = jax.lax.cond(jnp.linalg.norm(self.M) > self.RM,
+                              lambda x : x * (self.RM / jnp.linalg.norm(self.M)),
+                              lambda x : x,
+                              self.M)
+           
         # update us
         self.us = jnp.roll(self.us, 1, axis=0)
         self.us = jax.ops.index_update(self.us, 0, u)
 
         self.t += 1
+        
+        
+        
+        
+        

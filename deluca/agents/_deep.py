@@ -16,13 +16,14 @@ from numbers import Real
 
 import jax
 import jax.numpy as jnp
+import numpy as np
+import functools
 
 from deluca.agents.core import Agent
 from deluca.envs.core import Env
 from deluca.utils import Random
 
-
-# generic deep controller
+# generic deep controller for 1-dimensional discrete non-negative action space
 class Deep(Agent):
     """
     Generic deep controller that uses zero-order methods to train on an
@@ -31,7 +32,8 @@ class Deep(Agent):
 
     def __init__(
         self,
-        env: Env,
+        env_state_size,
+        action_space,
         learning_rate: Real = 0.001,
         gamma: Real = 0.99,
         max_episode_length: int = 500,
@@ -51,13 +53,13 @@ class Deep(Agent):
             None
         """
         # Create gym and seed numpy
-        self.env = env
+        self.env_state_size = int(env_state_size)
+        self.action_space = action_space
         self.max_episode_length = max_episode_length
         self.lr = learning_rate
         self.gamma = gamma
 
         self.random = Random(seed)
-
         self.reset()
 
     def reset(self) -> None:
@@ -73,7 +75,7 @@ class Deep(Agent):
         # Init weight
         self.W = jax.random.uniform(
             self.random.generate_key(),
-            shape=(self.env.state_size, len(self.env.action_space)),
+            shape=(self.env_state_size, len(self.action_space)),
             minval=0,
             maxval=1,
         )
@@ -85,7 +87,13 @@ class Deep(Agent):
         self.current_episode_reward = 0
         self.episode_rewards = jnp.zeros(self.max_episode_length)
         self.episode_grads = jnp.zeros((self.max_episode_length, self.W.shape[0], self.W.shape[1]))
-
+        
+        # dummy values for attrs, needed to inform scan of traced shapes
+        self.state = jnp.zeros((self.env_state_size,))
+        self.action = self.action_space[0]
+        ones = jnp.ones((len(self.action_space),))
+        self.probs = ones * 1/jnp.sum(ones)
+        
     def policy(self, state: jnp.ndarray, w: jnp.ndarray) -> jnp.ndarray:
         """
         Description: Policy that maps state to action parameterized by w
@@ -119,10 +127,13 @@ class Deep(Agent):
             jnp.ndarray: action to take
         """
         self.state = state
-        self.probs = self.policy(state, self.W)
+        self.probs = self.policy(state, self.W)        
         self.action = jax.random.choice(
-            self.random.generate_key(), a=self.env.action_space, p=self.probs
+            self.random.generate_key(), 
+            a=self.action_space, 
+            p=self.probs
         )
+
         return self.action
 
     def feed(self, reward: Real) -> None:

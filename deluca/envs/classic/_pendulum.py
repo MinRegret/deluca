@@ -58,7 +58,7 @@ class Pendulum(Env):
 
         self.reset()
         
-        @jax.jit
+        # @jax.jit
         def _dynamics(state, action):
             self.nsamples += 1
             th, thdot = state
