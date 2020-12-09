@@ -33,6 +33,9 @@ def iLQR_loop(env, U_initial, T, log=None):
         for alphaC in alpha * 1.1 * 1.1 ** (-jnp.arange(10) ** 2):
             t += 1
             XC, UC, cC = rollout(env, U, k, K, X, alphaC)
+            # print('UC = ' + str(UC))
+            print('c = ' + str(c))
+            print('cC = ' + str(cC))
 
             if log is not None:
                 log.append((t, float(min(c, cC)), env.nsamples))
@@ -62,7 +65,9 @@ def LQR(F, C):
             f_u.T @ V_xx @ f_x,
             c_uu + f_u.T @ V_xx @ f_u,
         )
-        K[h], k[h] = -jnp.linalg.inv(Q_uu) @ Q_ux, -jnp.linalg.inv(Q_uu) @ Q_u
+
+        # line may be numerically unstable if Q_uu is the 0 matrix
+        K[h], k[h] = -jnp.linalg.inv(Q_uu) @ Q_ux, -jnp.linalg.inv(Q_uu) @ Q_u 
         V_x = Q_x - K[h].T @ Q_uu @ k[h]
         V_xx = Q_xx - K[h].T @ Q_uu @ K[h]
         V_xx = (V_xx + V_xx.T) / 2
@@ -78,6 +83,8 @@ def rollout(env, U_old, k=None, K=None, X_old=None, alpha=1.0, render=False):
         else:
             U[h] = U_old[h] + alpha * k[h] + K[h] @ (X[h] - X_old[h])
         X[h + 1], instant_cost, _, _ = env.step(U[h])
+        # print('instant_cost = ' + str(instant_cost))
+        # print('cost = ' + str(cost))
         cost += instant_cost
         if render:
             env.render()

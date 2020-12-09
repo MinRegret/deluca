@@ -39,8 +39,8 @@ class Pendulum(Env):
     action_space = gym.spaces.Box(low=-max_torque, high=max_torque, shape=(1,), dtype=np.float32)
     observation_space = gym.spaces.Box(low=-high, high=high, dtype=np.float32)
 
-    def __init__(self, reward_fn=None, seed=0):
-        self.reward_fn = reward_fn or default_reward_fn
+    def __init__(self, reward_fn=None, seed=0, horizon=50):
+        # self.reward_fn = reward_fn or default_reward_fn
         self.dt = 0.05
         self.viewer = None
 
@@ -48,7 +48,7 @@ class Pendulum(Env):
         self.action_size = 1
         self.action_dim = 1 # redundant with action_size but needed by ILQR
         
-        self.H = 50
+        self.H = horizon
 
         self.n, self.m = 2, 1
         self.angle_normalize = angle_normalize
@@ -80,7 +80,10 @@ class Pendulum(Env):
         
         @jax.jit
         def c(x, u):
+            # return np.sum(angle_normalize(x[0]) ** 2 + 0.1 * x[1] ** 2 + 0.001 * (u ** 2))
             return angle_normalize(x[0])**2 + .1*(u[0]**2)
+        
+        self.reward_fn = reward_fn or c
         self.dynamics = _dynamics
         self.f, self.f_x, self.f_u = (
                 _dynamics,
@@ -94,26 +97,6 @@ class Pendulum(Env):
                 jax.hessian(c, argnums=0),
                 jax.hessian(c, argnums=1),
             )
-        
-    '''
-    @jax.jit
-    def dynamics(self, state, action):
-        th, thdot = state
-        g = 10.0
-        m = 1.0
-        ell = 1.0
-        dt = self.dt
-
-        # Do not limit the control signals
-        action = jnp.clip(action, -self.max_torque, self.max_torque)
-
-        newthdot = (
-            thdot + (-3 * g / (2 * ell) * jnp.sin(th + jnp.pi) + 3.0 / (m * ell ** 2) * action) * dt
-        )
-        newth = th + newthdot * dt
-        newthdot = jnp.clip(newthdot, -self.max_speed, self.max_speed)
-
-        return jnp.array([newth, newthdot])'''
 
     def reset(self):
         th = jax.random.uniform(self.random.generate_key(), minval=-jnp.pi, maxval=jnp.pi)
