@@ -34,7 +34,7 @@ from deluca.utils import Random
 
 
 class MountainCar(Env):
-    def __init__(self, goal_velocity=0, seed=0):
+    def __init__(self, goal_velocity=0, seed=0, horizon=50):
         self.min_action = -1.0
         self.max_action = 1.0
         self.min_position = -1.2
@@ -43,6 +43,8 @@ class MountainCar(Env):
         self.goal_position = 0.45  # was 0.5 in gym, 0.45 in Arnaud de Broissia's version
         self.goal_velocity = goal_velocity
         self.power = 0.0015
+        self.H = horizon
+        self.action_dim = 1
         self.random = Random(seed)
 
         self.low_state = np.array([self.min_position, -self.max_speed], dtype=np.float32)
@@ -54,30 +56,54 @@ class MountainCar(Env):
         self.observation_space = spaces.Box(
             low=self.low_state, high=self.high_state, dtype=np.float32
         )
+        self.nsamples = 0
+        
+        # @jax.jit
+        def _dynamics(state, action):
+            self.nsamples += 1
+            position = state[0]
+            velocity = state[1]
+
+            force = jnp.minimum(jnp.maximum(action, self.min_action), self.max_action)
+
+            velocity += force * self.power - 0.0025 * jnp.cos(3 * position)
+            velocity = jnp.clip(velocity, -self.max_speed, self.max_speed)
+
+            position += velocity
+            position = jnp.clip(position, self.min_position, self.max_position)
+            reset_velocity = (position == self.min_position) & (velocity < 0)
+            # print('state.shape = ' + str(state.shape))
+            # print('position.shape = ' + str(position.shape))
+            # print('velocity.shape = ' + str(velocity.shape))
+            # print('reset_velocity.shape = ' + str(reset_velocity.shape))
+            velocity = jax.lax.cond(reset_velocity[0], lambda x: jnp.zeros((1,)), lambda x: x, velocity)
+            # print('velocity.shape AFTER = ' + str(velocity.shape))
+            return jnp.reshape(jnp.array([position, velocity]), (2,))
+        
+        @jax.jit
+        def c(x, u):
+            position, velocity = self.state[0], self.state[1]
+            done = (position >= self.goal_position) & (velocity >= self.goal_velocity)
+            return -100.0 * done + 0.1*(u[0]+1)**2
+        self.reward_fn = c
+        self.dynamics = _dynamics
+        self.f, self.f_x, self.f_u = (
+                _dynamics,
+                jax.jacfwd(_dynamics, argnums=0),
+                jax.jacfwd(_dynamics, argnums=1),
+            )
+        self.c, self.c_x, self.c_u, self.c_xx, self.c_uu = (
+                c,
+                jax.grad(c, argnums=0),
+                jax.grad(c, argnums=1),
+                jax.hessian(c, argnums=0),
+                jax.hessian(c, argnums=1),
+            )
+                           
 
         self.reset()
 
-    @jax.jit
-    def dynamics(self, state, action):
-        position = state[0]
-        velocity = state[1]
-
-        force = jnp.minimum(jnp.maximum(action, self.min_action), self.max_action)
-
-        velocity += force * self.power - 0.0025 * jnp.cos(3 * position)
-        velocity = jnp.clip(velocity, -self.max_speed, self.max_speed)
-
-        position += velocity
-        position = jnp.clip(position, self.min_position, self.max_position)
-
-        reset_velocity = (position == self.min_position) & (velocity < 0)
-        velocity = jax.lax.cond(reset_velocity == 1, lambda x: 0.0, lambda x: x, velocity)
-        # if (position == self.min_position and velocity < 0): velocity = 0
-
-        return jnp.array([position, velocity])
-
     def step(self, action):
-
         self.state = self.dynamics(self.state, action)
         position = self.state[0]
         velocity = self.state[1]
@@ -85,8 +111,9 @@ class MountainCar(Env):
         # Convert a possible numpy bool to a Python bool.
         done = (position >= self.goal_position) & (velocity >= self.goal_velocity)
 
-        reward = 100.0 * done
-        reward -= jnp.power(action, 2) * 0.1
+        # reward = 100.0 * done
+        # reward -= jnp.power(action, 2) * 0.1
+        reward = self.reward_fn(self.state, action)
 
         return self.state, reward, done, {}
 
