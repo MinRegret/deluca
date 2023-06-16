@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from deluca.agents._bpc import BPC
 from deluca.agents._gpc import GPC
 from deluca.agents._hinf import Hinf
 from deluca.agents._ilqr import ILQR
@@ -21,4 +22,4 @@ from deluca.agents._drc import DRC
 from deluca.agents._adaptive import Adaptive
 from deluca.agents._deep import Deep
 
-__all__ = ["LQR", "PID", "GPC", "ILQR", "Hinf", "Zero", "DRC", "Adaptive", "Deep"]
+__all__ = ["LQR", "PID", "BPC", "GPC", "ILQR", "Hinf", "Zero", "DRC", "Adaptive", "Deep"]
